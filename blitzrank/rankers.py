@@ -37,7 +37,8 @@ class BlitzRank(Ranker):
             rerank_with_tournament_graph, RerankTask, SingleContent,
             LLMCompareOracle, TournamentGraphRerankConfig,
         )
-        oracle = LLMCompareOracle(self.window_size, ComparerConfig(type=ComparerType.LISTWISE_RANK_GPT, model=model))
+        ws = min(self.window_size, len(docs))
+        oracle = LLMCompareOracle(ws, ComparerConfig(type=ComparerType.LISTWISE_RANK_GPT, model=model))
         hits = _make_hits(docs)
         contents = [
             SingleContent(content=d, qid="0", docid=str(i), rank=i + 1, score=len(docs) - i, orig_idx=i)
@@ -66,8 +67,9 @@ class SlidingWindow(Ranker):
     async def __call__(self, query, docs, topk, model):
         from .engine.reranker import SlidingWindowSelector
         comparer = create_comparer(ComparerConfig(type=ComparerType.LISTWISE_RANK_GPT, model=model))
+        ws = min(self.window_size, len(docs))
         selector = SlidingWindowSelector(
-            _make_hits(docs), self.rank_end, self.window_size, self.step, self.num_rounds
+            _make_hits(docs), self.rank_end, ws, self.step, self.num_rounds
         )
         final_indices, _ = await selector.run(query, comparer)
         return final_indices[:topk]
@@ -140,7 +142,8 @@ class TourRank(Ranker):
     async def __call__(self, query, docs, topk, model):
         from .engine.algorithms.acurank_selectors import tourrank_rerank_single, TourRankConfig
         comparer = create_comparer(ComparerConfig(type=ComparerType.LISTWISE_RANK_GPT, model=model))
-        config = TourRankConfig(num_rounds=self.num_rounds, window_size=self.window_size)
+        ws = min(self.window_size, len(docs))
+        config = TourRankConfig(num_rounds=self.num_rounds, window_size=ws)
         result, _ = await tourrank_rerank_single(_make_task(query, docs), comparer, config)
         return [c.orig_idx for c in result][:topk]
 
@@ -165,9 +168,10 @@ class AcuRank(Ranker):
 
     async def __call__(self, query, docs, topk, model):
         from .engine.algorithms.acurank_selectors import acurank_rerank_single, AcuRankConfig
+        ws = min(self.window_size, len(docs))
         comparer = create_comparer(ComparerConfig(type=ComparerType.LISTWISE_RANK_GPT, model=model))
         config = AcuRankConfig(
-            window_size=self.window_size, tol=self.tol, hard_constraint=self.hard_constraint,
+            window_size=ws, tol=self.tol, hard_constraint=self.hard_constraint,
             uncertain_U=self.uncertain_U, R=self.R, break_mode=self.break_mode,
         )
         result, _ = await acurank_rerank_single(_make_task(query, docs), comparer, config, None, 0)
