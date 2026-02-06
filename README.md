@@ -75,7 +75,7 @@ Dataset names follow the format `collection/split/retriever`.
 |----------|----------|
 | **MSMARCO** | `msmarco/dl19/bm25`, `msmarco/dl20/bm25`, `msmarco/dl21/bm25`, `msmarco/dl22/bm25`, `msmarco/dl23/bm25`, `msmarco/dlhard/bm25` |
 | **BEIR** | `beir/nfcorpus/bm25`, `beir/fiqa/bm25`, `beir/trec-covid/bm25`, `beir/nq/bm25`, `beir/hotpotqa/bm25`, `beir/scifact/bm25`, `beir/arguana/bm25`, `beir/quora/bm25`, `beir/scidocs/bm25`, `beir/fever/bm25`, `beir/climate-fever/bm25`, `beir/dbpedia-entity/bm25`, `beir/robust04/bm25`, `beir/signal1m/bm25`, `beir/trec-news/bm25`, `beir/webis-touche2020/bm25` |
-| **BRIGHT** | `bright/aops/infx`, `bright/biology/infx`, `bright/leetcode/infx`, `bright/stackoverflow/infx`, ... |
+| **BRIGHT** | `bright/aops/infx`, `bright/biology/infx`, `bright/earth_science/infx`, `bright/economics/infx`, `bright/leetcode/infx`, `bright/pony/infx`, `bright/psychology/infx`, `bright/robotics/infx`, `bright/stackoverflow/infx`, `bright/sustainable_living/infx`, `bright/theoremqa_questions/infx`, `bright/theoremqa_theorems/infx` |
 
 ## Baselines
 
