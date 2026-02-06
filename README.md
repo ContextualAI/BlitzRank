@@ -97,14 +97,20 @@ Available methods: `BlitzRank`, `SlidingWindow`, `SetWise`, `PairWise`, `TourRan
 
 ## Reproducing Paper Results
 
-Run all methods across all datasets and models from the paper:
+Run all methods across all 14 datasets and 5 LLMs from the paper (Table 3):
 
 ```python
-from blitzrank import BlitzRank, SlidingWindow, SetWise, PairWise, evaluate
+from blitzrank import BlitzRank, SlidingWindow, SetWise, PairWise, TourRank, AcuRank, evaluate
 
+# 6 TREC-DL + 8 BEIR = 14 benchmarks
 DATASETS = [
+    # TREC-DL
     "msmarco/dl19/bm25", "msmarco/dl20/bm25", "msmarco/dl21/bm25",
-    "beir/nfcorpus/bm25", "beir/trec-covid/bm25", "beir/fiqa/bm25",
+    "msmarco/dl22/bm25", "msmarco/dl23/bm25", "msmarco/dlhard/bm25",
+    # BEIR
+    "beir/trec-covid/bm25", "beir/nfcorpus/bm25", "beir/signal1m/bm25",
+    "beir/trec-news/bm25", "beir/robust04/bm25", "beir/webis-touche2020/bm25",
+    "beir/dbpedia-entity/bm25", "beir/scifact/bm25",
 ]
 MODELS = [
     "openai/gpt-4.1",
@@ -114,17 +120,23 @@ MODELS = [
     "openrouter/z-ai/glm-4.7",
 ]
 RANKERS = {
-    "blitzrank": BlitzRank(),
-    "sliding_window": SlidingWindow(),
-    "setwise": SetWise(),
-    "pairwise": PairWise(),
+    "Blitz-k20": BlitzRank(window_size=20),
+    "Blitz-k10": BlitzRank(window_size=10),
+    "SW": SlidingWindow(),
+    "SW-R2": SlidingWindow(num_rounds=2),
+    "Setwise": SetWise(),
+    "Pairwise": PairWise(),
+    "TourRank": TourRank(),
+    "TourRank-R2": TourRank(num_rounds=2),
+    "AcuRank": AcuRank(),
+    "AcuRank-H": AcuRank(tol=1e-4),
 }
 
 for dataset in DATASETS:
     for model in MODELS:
         for name, ranker in RANKERS.items():
             rankings, metrics = evaluate(ranker, dataset=dataset, model=model)
-            print(f"{dataset}/{model}/{name}: {metrics}")
+            print(f"{name:>12} | {dataset:<28} | {model:<40} | nDCG@10={metrics['ndcg@10']:.3f}")
 ```
 
 📖 [Custom datasets and methods →](docs/extending.md)
