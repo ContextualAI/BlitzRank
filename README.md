@@ -1,15 +1,19 @@
-# BlitzRank
+<h1 align="center">BlitzRank</h1>
 
-**Principled Zero-shot Ranking Agents with Tournament Graphs**
+<p align="center"><b>Principled Zero-shot Ranking Agents with Tournament Graphs</b></p>
 
-[![arXiv](https://img.shields.io/badge/arXiv-2506.XXXXX-b31b1b.svg)](https://arxiv.org/abs/2506.XXXXX)
-[![Website](https://img.shields.io/badge/Website-blitzrank.github.io-blue)](https://blitzrank.github.io)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+<p align="center">
+  <a href="https://arxiv.org/abs/2602.05448"><img src="https://img.shields.io/badge/arXiv-2602.05448-b31b1b.svg" alt="arXiv"></a>
+  <a href="https://blitzrank.ai"><img src="https://img.shields.io/badge/Website-blitzrank.ai-blue" alt="Website"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+</p>
 
 BlitzRank uses tournament graphs to extract maximal information from each LLM call, a principled framework achieving Pareto optimality across 14 benchmarks and 5 LLMs with 25–40% fewer queries.
 
 <p align="center">
-  <img src="assets/images/tournament_graph.png" alt="Tournament Graph Framework" width="600"/>
+  <img src="assets/images/blitzrank_demo.gif" alt="BlitzRank vs Sliding Window animation" width="720"/>
+  <br>
+  <em>Comparison on the <a href="https://books.google.com/books?id=RosxmAYFFosC">25 horses puzzle</a>: find the 3 fastest horses from 25, racing 5 at a time.<br>BlitzRank converges in <strong>7 rounds</strong> vs Sliding Window's <strong>11 rounds</strong>.</em>
 </p>
 
 ## Installation
@@ -112,54 +116,11 @@ for dataset in datasets:
             print(f"{dataset}/{model}/{name}: {metrics}")
 ```
 
-## Custom Dataset
-
-Pass any dataset as a list of dicts with optional relevance judgments:
-
-```python
-from blitzrank import BlitzRank, evaluate
-
-dataset = [
-    {
-        "query": "capital of France",
-        "docs": {"d1": "Paris is...", "d2": "Berlin is..."},
-        "qrels": {"d1": 1, "d2": 0},  # optional, needed for metrics
-    },
-    {
-        "query": "largest ocean",
-        "docs": {"d3": "The Pacific...", "d4": "The Atlantic..."},
-        "qrels": {"d3": 1},
-    },
-]
-
-rankings, metrics = evaluate(BlitzRank(), dataset=dataset, model="openai/gpt-4.1")
-print(metrics)   # {"ndcg@10": ..., "map@10": ...}
-print(rankings)  # per-query rankings
-```
-
-## Custom Method
-
-Implement `__call__` returning indices sorted by relevance:
-
-```python
-from blitzrank import Ranker, evaluate
-
-class MyRanker(Ranker):
-    def __call__(self, query: str, docs: list[str], topk: int, model: str) -> list[int]:
-        """Return topk indices from docs, most relevant first."""
-        # your ranking logic
-        return sorted(range(len(docs)), key=lambda i: score(query, docs[i]), reverse=True)[:topk]
-
-rankings, metrics = evaluate(MyRanker(), dataset="msmarco/dl19/bm25", model="openai/gpt-4.1")
-```
+📖 [Custom datasets and methods →](docs/extending.md)
 
 ## Acknowledgements
 
-- [RankGPT](https://github.com/sunnweiwei/RankGPT) — Sliding window reranking
-- [SetWise](https://github.com/ielab/llm-rankers) — SetWise and PairWise rankers
-- [AcuRank](https://github.com/soyoung97/AcuRank) — Adaptive uncertainty ranking
-- [Pyserini](https://github.com/castorini/pyserini) — BM25 retrieval
-- [LiteLLM](https://github.com/BerriAI/litellm) — Unified LLM API
+This project builds upon the following open-source repositories: [RankGPT](https://github.com/sunnweiwei/RankGPT), [SetWise](https://github.com/ielab/llm-rankers), [AcuRank](https://github.com/soyoung97/AcuRank), [Pyserini](https://github.com/castorini/pyserini), and [LiteLLM](https://github.com/BerriAI/litellm).
 
 ## Citation
 
@@ -171,7 +132,3 @@ rankings, metrics = evaluate(MyRanker(), dataset="msmarco/dl19/bm25", model="ope
   year={2026}
 }
 ```
-
-## License
-
-MIT
