@@ -91,14 +91,16 @@ for Method in [BlitzRank, SlidingWindow, SetWise, PairWise, TourRank, AcuRank]:
     indices = rank(Method(), model="openai/gpt-4.1", query=query, docs=docs, topk=2)
 ```
 
-| Method | Description | Key Parameters |
-|--------|-------------|----------------|
-| `BlitzRank` | Tournament graphs with transitive closure (ours) | `window_size`, `top_m` |
-| `SlidingWindow` | RankGPT-style sliding window | `window_size`, `step`, `num_rounds` |
-| `SetWise` | Pick-the-winner with heapsort/bubblesort | `num_child`, `sorting_method` |
-| `PairWise` | Pairwise comparisons with heapsort/bubblesort | `sorting_method` |
-| `TourRank` | Multi-round tournament filtering | `num_rounds`, `window_size` |
-| `AcuRank` | Adaptive uncertainty-based ranking | `tol`, `hard_constraint` |
+| Method | Description |
+|--------|-------------|
+| `BlitzRank` | Tournament graphs with transitive closure (ours) |
+| `SlidingWindow` | RankGPT-style sliding window |
+| `SetWise` | Pick-the-winner with heapsort/bubblesort |
+| `PairWise` | Pairwise comparisons with heapsort/bubblesort |
+| `TourRank` | Multi-round tournament filtering |
+| `AcuRank` | Adaptive uncertainty-based ranking |
+
+📖 [Full parameter reference →](docs/parameters.md)
 
 ## Reproducing Paper Results
 
