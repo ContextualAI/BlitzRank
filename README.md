@@ -143,7 +143,7 @@ for dataset in DATASETS:
 
 ## Acknowledgements
 
-This project builds upon the following open-source repositories: [RankGPT](https://github.com/sunnweiwei/RankGPT), [SetWise](https://github.com/ielab/llm-rankers), [AcuRank](https://github.com/soyoung97/AcuRank), [Pyserini](https://github.com/castorini/pyserini), and [LiteLLM](https://github.com/BerriAI/litellm).
+This project builds upon the following open-source repositories: [RankGPT](https://github.com/sunnweiwei/RankGPT), [LLM-Rankers](https://github.com/ielab/llm-rankers), [AcuRank](https://github.com/soyoung97/AcuRank), [Pyserini](https://github.com/castorini/pyserini), and [LiteLLM](https://github.com/BerriAI/litellm).
 
 ## Citation
 
