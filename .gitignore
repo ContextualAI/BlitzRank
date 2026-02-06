@@ -1,0 +1,20 @@
+.env
+**/__pycache__/
+outputs/
+*.egg-info/
+public/
+assets/website/build/
+configs/run/
+.cache/
+.vscode/
+*.DS_Store
+
+# LaTeX compiled files in paper directory
+*.aux
+*.log
+*.out
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+*.bbl
+*.blg
