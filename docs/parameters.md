@@ -14,8 +14,6 @@ rankings, metrics = evaluate(ranker, dataset="msmarco/dl19/bm25", model="openai/
 
 ## BlitzRank
 
-Tournament graphs with transitive closure (ours).
-
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `window_size` | `int` | `20` | Number of documents per LLM comparison call |
@@ -24,8 +22,6 @@ Tournament graphs with transitive closure (ours).
 ---
 
 ## SlidingWindow
-
-RankGPT-style sliding window reranking.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -38,8 +34,6 @@ RankGPT-style sliding window reranking.
 
 ## SetWise
 
-Pick-the-winner comparisons with sorting.
-
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `sorting_method` | `str` | `"heapsort"` | Sorting algorithm: `"heapsort"` or `"bubblesort"` |
@@ -50,8 +44,6 @@ Pick-the-winner comparisons with sorting.
 
 ## PairWise
 
-Pairwise comparisons with sorting.
-
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `sorting_method` | `str` | `"heapsort"` | Sorting algorithm: `"heapsort"`, `"bubblesort"`, or `"allpair"` |
@@ -61,8 +53,6 @@ Pairwise comparisons with sorting.
 
 ## TourRank
 
-Multi-round tournament filtering.
-
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `num_rounds` | `int` | `1` | Number of tournament rounds |
@@ -71,8 +61,6 @@ Multi-round tournament filtering.
 ---
 
 ## AcuRank
-
-Adaptive uncertainty-based ranking.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
