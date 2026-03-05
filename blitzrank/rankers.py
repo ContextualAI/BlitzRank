@@ -1,13 +1,40 @@
 from abc import ABC, abstractmethod
+from typing import Tuple, Dict, Any
 
 from .engine.config import ComparerConfig, ComparerType, RerankingConfig, SelectorConfig
 from .engine.comparer import create_comparer
 
 
+def _extract_stats_from_logs(logs: list[dict]) -> Dict[str, Any]:
+    """Extract token usage statistics from iteration logs."""
+    if not logs:
+        return {
+            "num_llm_calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "thought_tokens": 0,
+            "total_tokens": 0,
+            "latency_ms": 0.0,
+        }
+    
+    input_tokens = sum(log.get("input_tokens", 0) for log in logs)
+    output_tokens = sum(log.get("output_tokens", 0) for log in logs)
+    thought_tokens = sum(log.get("thought_tokens", 0) for log in logs)
+    
+    return {
+        "num_llm_calls": len(logs),
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "thought_tokens": thought_tokens,
+        "total_tokens": input_tokens + output_tokens,
+        "latency_ms": sum(log.get("latency_ms", 0.0) for log in logs),
+    }
+
+
 class Ranker(ABC):
     @abstractmethod
-    async def __call__(self, query: str, docs: list[str], topk: int, model: str) -> list[int]:
-        """Return topk doc indices sorted by relevance (most relevant first)."""
+    async def __call__(self, query: str, docs: list[str], topk: int, model: str) -> Tuple[list[int], Dict[str, Any]]:
+        """Return (topk doc indices sorted by relevance, usage statistics)."""
         ...
 
 
@@ -48,7 +75,9 @@ class BlitzRank(Ranker):
         result = await rerank_with_tournament_graph(
             task, TournamentGraphRerankConfig(top_m=min(topk, len(docs)), oracle=oracle)
         )
-        return [item.content.orig_idx for item in result.results][:topk]
+        indices = [item.content.orig_idx for item in result.results][:topk]
+        stats = _extract_stats_from_logs(oracle.call_logs)
+        return indices, stats
 
     def _build_reranking_config(self, model):
         return RerankingConfig(
@@ -71,8 +100,9 @@ class SlidingWindow(Ranker):
         selector = SlidingWindowSelector(
             _make_hits(docs), self.rank_end, ws, self.step, self.num_rounds
         )
-        final_indices, _ = await selector.run(query, comparer)
-        return final_indices[:topk]
+        final_indices, logs = await selector.run(query, comparer)
+        stats = _extract_stats_from_logs(logs)
+        return final_indices[:topk], stats
 
     def _build_reranking_config(self, model):
         return RerankingConfig(
@@ -97,8 +127,9 @@ class SetWise(Ranker):
         comparer = create_comparer(ComparerConfig(type=ComparerType.SETWISE, model=model))
         config = SetwiseConfig(top_m=min(topk, len(docs)), num_child=self.num_child, method=self.sorting_method)
         fn = setwise_heapsort if self.sorting_method == "heapsort" else setwise_bubblesort
-        result, _ = await fn(_make_task(query, docs), comparer, config)
-        return [c.orig_idx for c in result][:topk]
+        result, logs = await fn(_make_task(query, docs), comparer, config)
+        stats = _extract_stats_from_logs(logs)
+        return [c.orig_idx for c in result][:topk], stats
 
     def _build_reranking_config(self, model):
         return RerankingConfig(
@@ -122,8 +153,9 @@ class PairWise(Ranker):
         comparer = create_comparer(ComparerConfig(type=ComparerType.PAIRWISE, model=model))
         config = PairwiseConfig(top_m=min(topk, len(docs)), method=self.sorting_method)
         fn = {"heapsort": pairwise_heapsort, "bubblesort": pairwise_bubblesort, "allpair": pairwise_allpair}[self.sorting_method]
-        result, _ = await fn(_make_task(query, docs), comparer, config)
-        return [c.orig_idx for c in result][:topk]
+        result, logs = await fn(_make_task(query, docs), comparer, config)
+        stats = _extract_stats_from_logs(logs)
+        return [c.orig_idx for c in result][:topk], stats
 
     def _build_reranking_config(self, model):
         return RerankingConfig(
@@ -144,8 +176,9 @@ class TourRank(Ranker):
         comparer = create_comparer(ComparerConfig(type=ComparerType.LISTWISE_RANK_GPT, model=model))
         ws = min(self.window_size, len(docs))
         config = TourRankConfig(num_rounds=self.num_rounds, window_size=ws)
-        result, _ = await tourrank_rerank_single(_make_task(query, docs), comparer, config)
-        return [c.orig_idx for c in result][:topk]
+        result, logs = await tourrank_rerank_single(_make_task(query, docs), comparer, config)
+        stats = _extract_stats_from_logs(logs)
+        return [c.orig_idx for c in result][:topk], stats
 
     def _build_reranking_config(self, model):
         return RerankingConfig(
@@ -174,8 +207,9 @@ class AcuRank(Ranker):
             window_size=ws, tol=self.tol, hard_constraint=self.hard_constraint,
             uncertain_U=self.uncertain_U, R=self.R, break_mode=self.break_mode,
         )
-        result, _ = await acurank_rerank_single(_make_task(query, docs), comparer, config, None, 0)
-        return [c.orig_idx for c in result][:topk]
+        result, logs = await acurank_rerank_single(_make_task(query, docs), comparer, config, None, 0)
+        stats = _extract_stats_from_logs(logs)
+        return [c.orig_idx for c in result][:topk], stats
 
     def _build_reranking_config(self, model):
         return RerankingConfig(

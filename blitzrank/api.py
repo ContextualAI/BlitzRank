@@ -8,8 +8,11 @@ from .engine.logger import ExperimentLogger
 from .engine.reranker import build_reranked_item_from_final_indices
 
 
-def rank(ranker, model, query, docs, topk=10):
-    return asyncio.run(ranker(query, docs, topk, model))
+def rank(ranker, model, query, docs, topk=10, return_stats=False):
+    indices, stats = asyncio.run(ranker(query, docs, topk, model))
+    if return_stats:
+        return indices, stats
+    return indices
 
 
 def evaluate(ranker, dataset, model):
@@ -107,6 +110,6 @@ async def _evaluate_per_query(ranker, dataset_raw, model):
     reranked_results = []
     for item in dataset_raw["results"]:
         docs = [hit["content"] for hit in item["hits"]]
-        indices = await ranker(item["query"], docs, len(docs), model)
+        indices, _ = await ranker(item["query"], docs, len(docs), model)
         reranked_results.append(build_reranked_item_from_final_indices(item["query"], item["hits"], indices))
     return {"results": reranked_results, "qrels": dataset_raw["qrels"]}
