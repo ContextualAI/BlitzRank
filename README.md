@@ -101,7 +101,8 @@ Available methods: `BlitzRank`, `SlidingWindow`, `SetWise`, `PairWise`, `TourRan
 
 ## Token Usage Tracking
 
-Get detailed token consumption statistics by setting `return_stats=True`:
+<details>
+<summary>Get detailed token consumption statistics by setting <code>return_stats=True</code></summary>
 
 ```python
 from blitzrank import BlitzRank, rank
@@ -128,6 +129,8 @@ print(stats)
 ```
 
 This works with all ranker types and is useful for cost tracking and performance monitoring.
+
+</details>
 
 ## Reproducing Paper Results
 
