@@ -55,6 +55,10 @@ docs = [
 # Any LiteLLM-compatible model works — just set the appropriate API keys as env variables
 indices = rank(ranker, model="openai/gpt-4.1", query=query, docs=docs, topk=2)  # [1, 0]
 top_docs = [docs[i] for i in indices]
+
+# Get token usage statistics
+indices, stats = rank(ranker, model="openai/gpt-4.1", query=query, docs=docs, topk=2, return_stats=True)
+print(stats)  # {"num_llm_calls": 1, "input_tokens": 245, "output_tokens": 12, ...}
 ```
 
 ## Evaluate on a Benchmark
@@ -94,6 +98,36 @@ for Method in [BlitzRank, SlidingWindow, SetWise, PairWise, TourRank, AcuRank]:
 Available methods: `BlitzRank`, `SlidingWindow`, `SetWise`, `PairWise`, `TourRank`, `AcuRank`
 
 📖 [Full parameter reference →](docs/parameters.md)
+
+## Token Usage Tracking
+
+Get detailed token consumption statistics by setting `return_stats=True`:
+
+```python
+from blitzrank import BlitzRank, rank
+
+ranker = BlitzRank()
+indices, stats = rank(
+    ranker, 
+    model="openai/gpt-4.1", 
+    query="capital of France", 
+    docs=["Berlin is in Germany", "Paris is in France", "Tokyo is in Japan"],
+    topk=2,
+    return_stats=True
+)
+
+print(stats)
+# {
+#     "num_llm_calls": 1,      # Number of LLM API calls made
+#     "input_tokens": 245,     # Total prompt tokens
+#     "output_tokens": 12,     # Total completion tokens
+#     "thought_tokens": 0,     # Reasoning tokens (for models that support it)
+#     "total_tokens": 257,     # input_tokens + output_tokens
+#     "latency_ms": 1523.4     # Total API latency in milliseconds
+# }
+```
+
+This works with all ranker types and is useful for cost tracking and performance monitoring.
 
 ## Reproducing Paper Results
 
