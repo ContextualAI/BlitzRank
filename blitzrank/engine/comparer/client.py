@@ -47,9 +47,9 @@ class LitellmClient:
         return {"chat_template_kwargs": {"enable_thinking": False}}
 
     @async_retry()
-    async def get_response(self, model, messages, temperature, fallback_enabled=True):
+    async def get_response(self, model, messages, temperature, fallback_enabled=True, **kwargs):
         start_time = time.perf_counter()
-        args = dict(model=model, messages=messages)
+        args = dict(model=model, messages=messages, **kwargs)
         if temperature is not None:
             args["temperature"] = temperature
         try:
@@ -59,7 +59,7 @@ class LitellmClient:
         if response is None or len(response.choices) == 0 or response.choices[0].message.content is None:
             if fallback_enabled and model in FALLBACK_MODELS:
                 logger.warning(f"No response from {model}, falling back to {FALLBACK_MODELS[model]}")
-                return await self.get_response(FALLBACK_MODELS[model], messages, temperature)
+                return await self.get_response(FALLBACK_MODELS[model], messages, temperature, **kwargs)
             raise Exception("No response from model")
         latency_ms = (time.perf_counter() - start_time) * 1000
         return response.choices[0].message.content, latency_ms, response.usage
