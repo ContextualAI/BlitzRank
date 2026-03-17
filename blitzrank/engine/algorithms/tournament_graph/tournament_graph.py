@@ -130,15 +130,18 @@ class TournamentGraph:
         in_reach = {}
         known_relationships = {}
         for node in self.G.nodes():
+            out_reaches = nx.descendants(self.G, node)
+            in_reaches = nx.ancestors(self.G, node)
+            known_relationship = in_reaches | out_reaches  # union
             n_other_nodes_in_scc = len(scc_members[scc_membership[node]]) - 1
-            out_reach[node] = len(
-                nx.descendants(self.G, node)
-            ) - n_other_nodes_in_scc  # all nodes reachable from node
-            in_reach[node] = len(
-                nx.ancestors(self.G, node)
-            ) - n_other_nodes_in_scc  # all nodes that can reach node
-            known_relationships[node] = (
-                out_reach[node] + in_reach[node] + n_other_nodes_in_scc
+            out_reach[node] = (
+                len(out_reaches) - n_other_nodes_in_scc
+            )  # all nodes reachable from node
+            in_reach[node] = (
+                len(in_reaches) - n_other_nodes_in_scc
+            )  # all nodes that can reach node
+            known_relationships[node] = len(
+                known_relationship
             )  # to account for double-counting the scc relationships
 
         num_3_cycles = self._count_3_cycles()
