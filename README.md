@@ -107,7 +107,7 @@ Available methods: `BlitzRank`, `SlidingWindow`, `SetWise`, `PairWise`, `TourRan
 ```python
 from blitzrank import BlitzRank, rank
 
-ranker = BlitzRank(max_parallel_matches=2)
+ranker = BlitzRank(max_parallel_matches=5)
 indices, stats = rank(
     ranker, 
     model="openai/gpt-4.1", 
