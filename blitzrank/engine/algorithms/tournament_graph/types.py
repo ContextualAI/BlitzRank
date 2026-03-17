@@ -121,6 +121,7 @@ class TournamentGraphSortConfig:
     on_round_complete: Callable[["RoundLog"], Awaitable[None] | None] | None = None
 
     max_num_rounds: int = DEFAULT_MAX_NUM_ROUNDS
+    max_parallel_matches: int = 5  # number of matches to run in parallel per round
 
 
 @dataclass
