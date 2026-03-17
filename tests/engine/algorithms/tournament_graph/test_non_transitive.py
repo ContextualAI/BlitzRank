@@ -1,9 +1,11 @@
 from blitzrank.engine.algorithms.tournament_graph.tournament_graph import TournamentGraph
 from blitzrank.engine.algorithms.tournament_graph.tournament_graph_sort import (
+    TournamentGraphSort,
     tournament_graph_sort,
     TournamentGraphSortConfig,
     TournamentGraphSortResult,
 )
+from blitzrank.engine.algorithms.tournament_graph.types import NodeInfo
 from blitzrank.engine.algorithms.tournament_graph.toy_setup import (
     make_shuffled_bucketed_items,
     ToyNonTransitiveBucketOracle,
@@ -211,7 +213,9 @@ def test_tournament_graph_multi_scc_cycle_structure() -> None:
     Expected:
     - 3 SCCs (one per bucket — within-bucket cycles merge each bucket into one SCC).
     - 3 three-cycles detected.
-    - Cross-bucket reach: bucket-0 items have out_reach=6, bucket-2 items have in_reach=6.
+    - Cross-bucket reach: bucket-0 items have out_reach=8, bucket-2 items have in_reach=8.
+      (R⁺_G / R⁻_G per the paper include same-SCC members since they are mutually reachable
+      in the original graph G, so 2 same-SCC + 6 cross-bucket = 8.)
     """
     buckets = [[Item(f"{b}.{w}") for w in range(3)] for b in range(3)]
     all_items = [item for bucket in buckets for item in bucket]
@@ -248,15 +252,100 @@ def test_tournament_graph_multi_scc_cycle_structure() -> None:
             f"Bucket {i} items span {len(scc_ids)} SCCs, expected 1"
         )
 
-    # Bucket 0 beats all 6 items in buckets 1 and 2
+    # Bucket 0 beats all 6 items in buckets 1 and 2, plus its 2 same-SCC members are
+    # also reachable via the within-bucket cycle: 2 + 6 = 8 (R⁺_G per the paper).
     b0_rep = buckets[0][0]
-    assert round_output.out_reach[b0_rep] == 6, (
-        f"Bucket-0 representative should have out_reach=6, got {round_output.out_reach[b0_rep]}"
+    assert round_output.out_reach[b0_rep] == 8, (
+        f"Bucket-0 representative should have out_reach=8, got {round_output.out_reach[b0_rep]}"
     )
-    # Bucket 2 is beaten by all 6 items in buckets 0 and 1
+    # Bucket 2 is beaten by all 6 items in buckets 0 and 1, plus its 2 same-SCC members
+    # can also reach it via the within-bucket cycle: 2 + 6 = 8 (R⁻_G per the paper).
     b2_rep = buckets[2][0]
-    assert round_output.in_reach[b2_rep] == 6, (
-        f"Bucket-2 representative should have in_reach=6, got {round_output.in_reach[b2_rep]}"
+    assert round_output.in_reach[b2_rep] == 8, (
+        f"Bucket-2 representative should have in_reach=8, got {round_output.in_reach[b2_rep]}"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Termination condition
+# --------------------------------------------------------------------------- #
+
+
+def test_termination_skips_unresolved_top_m_node() -> None:
+    """
+    Regression test for a bug in the termination condition.
+
+    Algorithm 1 terminates when T ⊆ F: the contiguous top-m set is fully resolved.
+    The implementation instead accumulates resolved nodes anywhere in the sorted list
+    and stops when it reaches m of them — which can skip over unresolved top-m nodes.
+
+    Setup: 4 nodes, edges a→b, a→c, a→d, b→d, c→d (b↔c never compared).
+    The condensation is a branching DAG — b and c are parallel with no edge between them:
+
+        a → b → d
+        a → c → d
+
+    Resulting state:
+        a: in_reach=0, resolved   (knows b, c, d)
+        b: in_reach=1, unresolved (knows a, d — but not c)
+        c: in_reach=1, unresolved (knows a, d — but not b)
+        d: in_reach=3, resolved   (knows a, b, c)
+
+    With m=2, the correct top-2 is {a, b} or {a, c} (b and c tied at in_reach=1).
+    Since the top-2 contains an unresolved node, Algorithm 1 must not terminate.
+
+    The buggy implementation collects finalized_nodes=[a, d] (len=2 ≥ m), triggering
+    premature termination and returning [a, d] instead of [a, b] or [a, c].
+    """
+    a, b, c, d = Item("a"), Item("b"), Item("c"), Item("d")
+    items = [a, b, c, d]
+    n = len(items)
+
+    g = TournamentGraph(items, enforce_tournament=True)
+    ro = g.process_round([(a, b), (a, c), (a, d), (b, d), (c, d)])
+
+    # Verify the graph state matches the described scenario
+    assert ro.in_reach == {a: 0, b: 1, c: 1, d: 3}
+    assert ro.known_relationships[a] == n - 1  # resolved
+    assert ro.known_relationships[b] == 2      # NOT resolved: b↔c unknown
+    assert ro.known_relationships[c] == 2      # NOT resolved: b↔c unknown
+    assert ro.known_relationships[d] == n - 1  # resolved
+
+    node_infos = [
+        NodeInfo(
+            node=item,
+            in_reach=ro.in_reach[item],
+            out_reach=ro.out_reach[item],
+            known_relationships=ro.known_relationships[item],
+            scc_group=ro.scc_members[ro.scc_membership[item]],
+        )
+        for item in items
+    ]
+
+    oracle = ToyNonTransitiveBucketOracle(k=3)
+    sorter = TournamentGraphSort(items, oracle, num_top_nodes_to_output=2)
+    progress = sorter.get_tournament_progress_and_schedule_next_match(node_infos)
+
+    # Sorted order must be [a, {b or c}, {b or c}, d]
+    sorted_nodes = [ni.node for ni in progress.sorted_node_infos]
+    assert sorted_nodes[0] == a
+    assert set(sorted_nodes[1:3]) == {b, c}
+    assert sorted_nodes[3] == d
+
+    # The top-2 contains an unresolved node (b or c) — Algorithm 1 must not terminate.
+    top_2_resolved = all(
+        sorter.node_satisfies_finalization_criterion(ni)
+        for ni in progress.sorted_node_infos[:2]
+    )
+    assert not top_2_resolved, "Setup check: top-2 must contain an unresolved node"
+
+    # Correct behavior: finalized_nodes should have fewer than m=2 entries,
+    # since the top-2 is not fully resolved and termination must not trigger.
+    assert len(progress.finalized_nodes) < 2, (
+        f"Termination bug: implementation reports finalized="
+        f"{[str(x.id) for x in progress.finalized_nodes]}, "
+        f"but the top-2 {[str(x.id) for x in sorted_nodes[:2]]} is not fully resolved. "
+        f"d (in_reach=3, rank 4) must not appear in the top-m result."
     )
 
 
