@@ -31,6 +31,32 @@ def make_shuffled_items(n: int) -> List[Item]:
 #  -------------------------- Non-transitive Setup --------------------------
 
 
+class ToyNonTransitiveFullPairwiseOracle(CompareOracle):
+    """
+    Like ToyNonTransitiveBucketOracle but emits all C(k,2) pairwise edges rather
+    than only the adjacent pairs of the Hamiltonian path.
+
+    This guarantees cycle-closing edges appear in the graph whenever cycle members
+    are scheduled in the same match, making SCC formation deterministic in tests
+    rather than dependent on scheduling luck.
+    """
+
+    def _compare_k(self, items: List[Item]) -> OracleResult:
+        if len(items) > self.k:
+            raise ValueError(
+                f"compare_k expects at most k={self.k} items, got {len(items)}"
+            )
+        edges = []
+        for i in range(len(items)):
+            for j in range(i + 1, len(items)):
+                a, b = items[i], items[j]
+                edges.append((a, b) if _bucket_beats(a, b) else (b, a))
+        return OracleResult(edges=edges)
+
+    async def _compare_k_async(self, items: List[Item]) -> OracleResult:
+        return self._compare_k(items)
+
+
 class ToyNonTransitiveBucketOracle(CompareOracle):
     def _compare_k(self, items: List[Item]) -> OracleResult:
         """
