@@ -188,9 +188,7 @@ class TournamentGraphSort:
         seen_sccs: set[frozenset[Item]] = set()
         representatives = []
         for node_info in sorted_node_infos:
-            # Only finalize consecutive top items that satisfy the criterion.
-            # This prevents finalizing losers who happen to have many comparisons.
-            if not representatives and self.node_satisfies_finalization_criterion(node_info):
+            if self.node_satisfies_finalization_criterion(node_info):
                 finalized_nodes.append(node_info.node)
                 continue
             # Pick one representative per SCC to ensure cross-SCC edges are added
