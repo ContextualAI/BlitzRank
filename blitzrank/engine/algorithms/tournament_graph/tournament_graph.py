@@ -25,13 +25,11 @@ class RoundOutput:
     scc_sizes: List[int]  # List of SCC sizes (sorted descending)
     num_sccs: int  # Number of SCCs
 
-    # Transitive closure of condensation degrees
-    out_reach: Dict[Any, int]  # nodes in SCCs reachable FROM u's SCC
-    in_reach: Dict[Any, int]  # nodes in SCCs that can REACH u's SCC
+    # R⁺_G(u) and R⁻_G(u): reachability in G (includes same-SCC members)
+    out_reach: Dict[Any, int]  # |R⁺_G(u)|: nodes reachable FROM u in G
+    in_reach: Dict[Any, int]  # |R⁻_G(u)|: nodes that can REACH u in G
 
-    known_relationships: Dict[
-        Any, int
-    ]  # nodes that beat $u$, nodes that $u$ beats, and the $|B(u)| - 1$ other nodes tied with $u$ in the same SCC.
+    known_relationships: Dict[Any, int]  # κ_G(u) = |R⁻_G(u) ∪ R⁺_G(u)|
 
     num_3_cycles: int  # Count of 3-cycles (0 = perfectly transitive)
 
@@ -70,27 +68,17 @@ class TournamentGraph:
             self.G.add_edge(u, v)
 
     def _count_3_cycles(self) -> int:
-        """
-        Count directed 3-cycles in the current graph.
-
-        Returns:
-            num_3_cycles
-        """
-        n = self.G.number_of_nodes()
-
-        if n < 3:
+        if self.G.number_of_nodes() < 3:
             return 0
-
         adj = {u: set(self.G.successors(u)) for u in self.G.nodes()}
-        cycles = 0
-        for u, u_neighbors in adj.items():
-            for v in u_neighbors:
-                for w in adj.get(v, ()):
-                    if u in adj.get(w, ()):
-                        cycles += 1
-
-        num_3_cycles = cycles // 3
-        return num_3_cycles
+        cycles = sum(
+            1
+            for u, u_neighbors in adj.items()
+            for v in u_neighbors
+            for w in adj.get(v, ())
+            if u in adj.get(w, ())
+        )
+        return cycles // 3
 
     def process_round(self, edges: List[Tuple[Any, Any]]) -> RoundOutput:
         """
@@ -102,65 +90,41 @@ class TournamentGraph:
         Returns:
             RoundOutput with all degree information
         """
-        # Step 1: Add edges to graph
         self._add_edges_tournament(edges)
 
-        # Step 3: Compute condensation G*
         condensation = nx.condensation(self.G)
-
-        # B(u): node -> SCC index
         scc_membership = condensation.graph["mapping"]
-
-        # SCC index -> set of member nodes
         scc_members = {
             scc_idx: condensation.nodes[scc_idx]["members"]
             for scc_idx in condensation.nodes()
         }
-
-        # SCC sizes (sorted descending)
         scc_sizes = sorted(
             [len(members) for members in scc_members.values()], reverse=True
         )
-        num_sccs = len(scc_sizes)
 
-        # Step 2: Compute original graph degrees and reach metrics
-        in_degree = dict(self.G.in_degree())
-        out_degree = dict(self.G.out_degree())
         out_reach = {}
         in_reach = {}
         known_relationships = {}
         for node in self.G.nodes():
-            n_other_nodes_in_scc = len(scc_members[scc_membership[node]]) - 1
-            out_reach[node] = len(
-                nx.descendants(self.G, node)
-            ) - n_other_nodes_in_scc  # all nodes reachable from node
-            in_reach[node] = len(
-                nx.ancestors(self.G, node)
-            ) - n_other_nodes_in_scc  # all nodes that can reach node
-            known_relationships[node] = (
-                out_reach[node] + in_reach[node] + n_other_nodes_in_scc
-            )  # to account for double-counting the scc relationships
-
-        num_3_cycles = self._count_3_cycles()
+            descendants = nx.descendants(self.G, node)
+            ancestors = nx.ancestors(self.G, node)
+            out_reach[node] = len(descendants)
+            in_reach[node] = len(ancestors)
+            known_relationships[node] = len(ancestors | descendants)
 
         return RoundOutput(
-            in_degree=in_degree,
-            out_degree=out_degree,
+            in_degree=dict(self.G.in_degree()),
+            out_degree=dict(self.G.out_degree()),
             scc_membership=scc_membership,
             scc_members=scc_members,
             scc_sizes=scc_sizes,
-            num_sccs=num_sccs,
+            num_sccs=len(scc_sizes),
             out_reach=out_reach,
             in_reach=in_reach,
             known_relationships=known_relationships,
-            num_3_cycles=num_3_cycles,
+            num_3_cycles=self._count_3_cycles(),
         )
 
     def get_graph(self) -> nx.DiGraph:
         """Return the current graph for inspection."""
         return self.G
-
-
-def main():
-    # test code
-    pass
