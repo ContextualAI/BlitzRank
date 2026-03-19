@@ -12,6 +12,40 @@ from .types import (
 )
 
 
+def _interleave_cycle_reps(
+    cycle_reps: List[Item], singleton_reps: List[Item], k: int
+) -> List[Item]:
+    """
+    Build representative list with cycle reps distributed at the front of each match.
+    This ensures cycles get compared against singletons to make progress on resolution.
+    """
+    if not cycle_reps:
+        return singleton_reps
+    result = []
+    cycle_iter = iter(cycle_reps)
+    singleton_iter = iter(singleton_reps)
+    while True:
+        # Start each match-sized chunk with a cycle rep if available
+        cycle_rep = next(cycle_iter, None)
+        if cycle_rep:
+            result.append(cycle_rep)
+        # Fill rest of chunk with singletons
+        for _ in range(k - 1 if cycle_rep else k):
+            singleton = next(singleton_iter, None)
+            if singleton:
+                result.append(singleton)
+            else:
+                break
+        # Stop when both are exhausted
+        if cycle_rep is None and not result[-1:]:
+            break
+        if cycle_rep is None:
+            # No more cycle reps, append remaining singletons
+            result.extend(singleton_iter)
+            break
+    return result
+
+
 class TournamentGraphSort:
     def __init__(
         self,
@@ -118,22 +152,6 @@ class TournamentGraphSort:
                 f"This indicates a bug in the scheduling algorithm. Item0: {self.items[0]}"
             )
 
-    def organize_match_and_update_graph(
-        self,
-        nodes_for_next_match: List[Item],
-    ) -> Tuple[RoundOutput, List[Tuple[Item, Item]], OracleResult]:
-        oracle_result = self.oracle.compare_k(nodes_for_next_match)
-        round_output = self.tournament_graph.process_round(oracle_result.edges)
-        return round_output, oracle_result.edges, oracle_result
-
-    async def organize_match_and_update_graph_async(
-        self,
-        nodes_for_next_match: List[Item],
-    ) -> Tuple[RoundOutput, List[Tuple[Item, Item]], OracleResult]:
-        oracle_result = await self.oracle.compare_k_async(nodes_for_next_match)
-        round_output = self.tournament_graph.process_round(oracle_result.edges)
-        return round_output, oracle_result.edges, oracle_result
-
     def get_tournament_progress_for_round(
         self, round_output: RoundOutput
     ) -> TournamentProgress:
@@ -160,12 +178,8 @@ class TournamentGraphSort:
         )
 
     def node_satisfies_finalization_criterion(self, node_info: NodeInfo) -> bool:
-        """
-        A node in a tournament graph is eligible to be finalized if it has enough total reach.
-        """
-        enough_total_reach = node_info.known_relationships >= self.n - 1
-
-        return enough_total_reach
+        """A node is finalized when its relationship to all other nodes is known."""
+        return node_info.known_relationships >= self.n - 1
 
     def get_tournament_progress_and_schedule_next_match(
         self, node_infos: List[NodeInfo]
@@ -195,37 +209,36 @@ class TournamentGraphSort:
 
         # Schedule: one representative per unresolved SCC, by ascending in_reach
         seen_sccs: set[frozenset[Item]] = set()
-        representatives = []
+        singleton_reps: List[Item] = []
+        cycle_reps: List[Item] = []
         for node_info in sorted_node_infos:
             if self.node_satisfies_finalization_criterion(node_info):
                 continue
             scc_key = frozenset(node_info.scc_group)
             if scc_key not in seen_sccs:
                 seen_sccs.add(scc_key)
-                representatives.append(node_info.node)
+                if len(node_info.scc_group) > 1:
+                    cycle_reps.append(node_info.node)
+                else:
+                    singleton_reps.append(node_info.node)
 
-        # Determine how many parallel matches to run.
-        # Count items with in_reach=0 (undominated/competitive items)
+        # Interleave cycle reps at the front of each match to ensure they get
+        # compared against singletons (needed to resolve ties in cycles)
+        representatives = _interleave_cycle_reps(cycle_reps, singleton_reps, self.k)
+
+        # Determine how many parallel matches to run
         top_item_compared = sorted_node_infos[0].known_relationships > 0 if sorted_node_infos else False
         num_competitive = sum(1 for ni in sorted_node_infos if ni.in_reach == 0)
 
         if not top_item_compared:
-            # Initial state: no comparisons done yet, all items independent
-            # Run all initial heats in parallel
             max_reps = min(len(representatives), self.k * self.max_parallel_matches)
         elif num_competitive > self.k:
-            # Many undominated items exist - we'd need multiple rounds to compare them
-            # Safe to parallelize without increasing total calls
-            # Only schedule FULL matches (divisible by k) to avoid partial match overhead
             num_full_matches = min(num_competitive // self.k, self.max_parallel_matches)
             max_reps = num_full_matches * self.k
         else:
-            # Few competitive items - focus on top k only
-            # This maintains oracle call parity with sequential
             max_reps = self.k
-        representatives = representatives[:max_reps]
 
-        return TournamentProgress(representatives, [], sorted_node_infos)
+        return TournamentProgress(representatives[:max_reps], [], sorted_node_infos)
 
     def get_sorted_node_infos(self, node_infos: List[NodeInfo]) -> List[NodeInfo]:
         if self.sort_strategy == SortStrategy.ASCENDING_OUT_REACH:
