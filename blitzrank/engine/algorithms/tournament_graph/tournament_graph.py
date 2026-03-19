@@ -84,11 +84,6 @@ class TournamentGraph:
         """
         Add edges from this round and compute all required outputs.
 
-        Uses graph algorithms for efficient computation:
-        1. Tarjan's/Kosaraju's algorithm via nx.condensation() for SCC decomposition
-        2. Transitive closure on the condensation DAG for batch reachability
-        3. Map SCC-level reach back to nodes (nodes in same SCC share reach values)
-
         Args:
             edges: List of (u, v) meaning u beats v (edge from u to v)
 
@@ -97,7 +92,6 @@ class TournamentGraph:
         """
         self._add_edges_tournament(edges)
 
-        # SCC decomposition via Tarjan's algorithm (O(V+E))
         condensation = nx.condensation(self.G)
         scc_membership = condensation.graph["mapping"]
         scc_members = {
@@ -108,31 +102,15 @@ class TournamentGraph:
             [len(members) for members in scc_members.values()], reverse=True
         )
 
-        # Transitive closure of condensation DAG for O(S^2) reachability
-        # where S = number of SCCs, typically << V
-        condensation_tc = nx.transitive_closure(condensation)
-
-        # Precompute per-SCC reachability (excludes self-SCC)
-        scc_out_reach = {}
-        scc_in_reach = {}
-        for scc_idx in condensation.nodes():
-            successor_sccs = set(condensation_tc.successors(scc_idx))
-            scc_out_reach[scc_idx] = sum(len(scc_members[s]) for s in successor_sccs)
-            predecessor_sccs = set(condensation_tc.predecessors(scc_idx))
-            scc_in_reach[scc_idx] = sum(len(scc_members[s]) for s in predecessor_sccs)
-
-        # Map SCC-level reach back to original nodes
-        # Within an SCC, all nodes are mutually reachable, so add (scc_size - 1)
         out_reach = {}
         in_reach = {}
         known_relationships = {}
         for node in self.G.nodes():
-            scc = scc_membership[node]
-            scc_size = len(scc_members[scc])
-            out_reach[node] = scc_out_reach[scc] + (scc_size - 1)
-            in_reach[node] = scc_in_reach[scc] + (scc_size - 1)
-            # known = predecessor nodes + successor nodes + other SCC members (counted once)
-            known_relationships[node] = scc_out_reach[scc] + scc_in_reach[scc] + (scc_size - 1)
+            descendants = nx.descendants(self.G, node)
+            ancestors = nx.ancestors(self.G, node)
+            out_reach[node] = len(descendants)
+            in_reach[node] = len(ancestors)
+            known_relationships[node] = len(ancestors | descendants)
 
         return RoundOutput(
             in_degree=dict(self.G.in_degree()),
