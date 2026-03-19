@@ -171,27 +171,34 @@ class TournamentGraphSort:
         self, node_infos: List[NodeInfo]
     ) -> TournamentProgress:
         """
-        Schedule next round by picking representatives from distinct SCCs.
+        Check termination and schedule the next match (Algorithm 1).
 
-        Why SCC-based scheduling guarantees progress:
-        - Within an SCC, all pairwise edges already exist (mutual reachability)
-        - Between different SCCs, at least some edges are missing (otherwise they'd merge)
-        - Querying representatives from k different SCCs adds new cross-SCC edges
-        - New edges either establish ordering in the condensation DAG or merge SCCs
+        Termination (Algorithm 1, lines 10-14):
+            T ← top-m nodes by ascending in_reach
+            F ← resolved nodes (known_relationships == n-1)
+            if T ⊆ F: return T
+
+        Scheduling (Algorithm 1, lines 17-19):
+            Pick one representative per unresolved SCC, ordered by ascending in_reach
+            in the condensation, up to k representatives total.
 
         With max_parallel_matches > 1, we collect up to k * max_parallel_matches
         representatives to run multiple non-overlapping matches in parallel.
         Parallelism is capped to avoid scattering comparisons across non-competitive items.
         """
         sorted_node_infos = self.get_sorted_node_infos(node_infos)
-        finalized_nodes = []
+        top_m = sorted_node_infos[: self.num_top_nodes_to_output]
+
+        # Terminate iff every node in the current top-m is resolved
+        if all(self.node_satisfies_finalization_criterion(ni) for ni in top_m):
+            return TournamentProgress([], [ni.node for ni in top_m], sorted_node_infos)
+
+        # Schedule: one representative per unresolved SCC, by ascending in_reach
         seen_sccs: set[frozenset[Item]] = set()
         representatives = []
         for node_info in sorted_node_infos:
             if self.node_satisfies_finalization_criterion(node_info):
-                finalized_nodes.append(node_info.node)
                 continue
-            # Pick one representative per SCC to ensure cross-SCC edges are added
             scc_key = frozenset(node_info.scc_group)
             if scc_key not in seen_sccs:
                 seen_sccs.add(scc_key)
@@ -201,7 +208,7 @@ class TournamentGraphSort:
         # Count items with in_reach=0 (undominated/competitive items)
         top_item_compared = sorted_node_infos[0].known_relationships > 0 if sorted_node_infos else False
         num_competitive = sum(1 for ni in sorted_node_infos if ni.in_reach == 0)
-        
+
         if not top_item_compared:
             # Initial state: no comparisons done yet, all items independent
             # Run all initial heats in parallel
@@ -218,7 +225,7 @@ class TournamentGraphSort:
             max_reps = self.k
         representatives = representatives[:max_reps]
 
-        return TournamentProgress(representatives, finalized_nodes, sorted_node_infos)
+        return TournamentProgress(representatives, [], sorted_node_infos)
 
     def get_sorted_node_infos(self, node_infos: List[NodeInfo]) -> List[NodeInfo]:
         if self.sort_strategy == SortStrategy.ASCENDING_OUT_REACH:

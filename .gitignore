@@ -1,6 +1,8 @@
 .env
+CLAUDE.md
 **/__pycache__/
 outputs/
+blitzrank_outputs/
 *.egg-info/
 public/
 assets/website/build/
