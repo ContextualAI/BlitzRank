@@ -12,6 +12,40 @@ from .types import (
 )
 
 
+def _interleave_cycle_reps(
+    cycle_reps: List[Item], singleton_reps: List[Item], k: int
+) -> List[Item]:
+    """
+    Build representative list with cycle reps distributed at the front of each match.
+    This ensures cycles get compared against singletons to make progress on resolution.
+    """
+    if not cycle_reps:
+        return singleton_reps
+    result = []
+    cycle_iter = iter(cycle_reps)
+    singleton_iter = iter(singleton_reps)
+    while True:
+        # Start each match-sized chunk with a cycle rep if available
+        cycle_rep = next(cycle_iter, None)
+        if cycle_rep:
+            result.append(cycle_rep)
+        # Fill rest of chunk with singletons
+        for _ in range(k - 1 if cycle_rep else k):
+            singleton = next(singleton_iter, None)
+            if singleton:
+                result.append(singleton)
+            else:
+                break
+        # Stop when both are exhausted
+        if cycle_rep is None and not result[-1:]:
+            break
+        if cycle_rep is None:
+            # No more cycle reps, append remaining singletons
+            result.extend(singleton_iter)
+            break
+    return result
+
+
 class TournamentGraphSort:
     def __init__(
         self,
@@ -175,14 +209,22 @@ class TournamentGraphSort:
 
         # Schedule: one representative per unresolved SCC, by ascending in_reach
         seen_sccs: set[frozenset[Item]] = set()
-        representatives: List[Item] = []
+        singleton_reps: List[Item] = []
+        cycle_reps: List[Item] = []
         for node_info in sorted_node_infos:
             if self.node_satisfies_finalization_criterion(node_info):
                 continue
             scc_key = frozenset(node_info.scc_group)
             if scc_key not in seen_sccs:
                 seen_sccs.add(scc_key)
-                representatives.append(node_info.node)
+                if len(node_info.scc_group) > 1:
+                    cycle_reps.append(node_info.node)
+                else:
+                    singleton_reps.append(node_info.node)
+
+        # Interleave cycle reps at the front of each match to ensure they get
+        # compared against singletons (needed to resolve ties in cycles)
+        representatives = _interleave_cycle_reps(cycle_reps, singleton_reps, self.k)
 
         # Determine how many parallel matches to run
         top_item_compared = sorted_node_infos[0].known_relationships > 0 if sorted_node_infos else False
