@@ -173,24 +173,16 @@ class TournamentGraphSort:
         if all(self.node_satisfies_finalization_criterion(ni) for ni in top_m):
             return TournamentProgress([], [ni.node for ni in top_m], sorted_node_infos)
 
-        # Schedule: one representative per unresolved SCC, by ascending in_reach.
-        # Cycle reps (from multi-node SCCs) go first to ensure they get compared
-        # against singletons - cycles have high in_reach due to mutual edges,
-        # so without prioritization they'd never be scheduled.
+        # Schedule: one representative per unresolved SCC, by ascending in_reach
         seen_sccs: set[frozenset[Item]] = set()
-        cycle_reps: List[Item] = []
-        singleton_reps: List[Item] = []
+        representatives: List[Item] = []
         for node_info in sorted_node_infos:
             if self.node_satisfies_finalization_criterion(node_info):
                 continue
             scc_key = frozenset(node_info.scc_group)
             if scc_key not in seen_sccs:
                 seen_sccs.add(scc_key)
-                if len(node_info.scc_group) > 1:
-                    cycle_reps.append(node_info.node)
-                else:
-                    singleton_reps.append(node_info.node)
-        representatives = cycle_reps + singleton_reps
+                representatives.append(node_info.node)
 
         # Determine how many parallel matches to run
         top_item_compared = sorted_node_infos[0].known_relationships > 0 if sorted_node_infos else False

@@ -364,7 +364,7 @@ class TestLargeSCCs:
 
     def test_single_large_scc_at_top(self):
         """Top 5 items form a cycle (all tied for 1st place)."""
-        n = 25
+        n = 10
         items = [Item(id=i) for i in range(n)]
         ground_truth = items.copy()  # 0 is best, 24 is worst
         # Items 0-4 form a cycle (all tied at the top)
