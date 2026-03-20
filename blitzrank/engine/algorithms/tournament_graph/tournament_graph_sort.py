@@ -12,40 +12,6 @@ from .types import (
 )
 
 
-def _interleave_cycle_reps(
-    cycle_reps: List[Item], singleton_reps: List[Item], k: int
-) -> List[Item]:
-    """
-    Build representative list with cycle reps distributed at the front of each match.
-    This ensures cycles get compared against singletons to make progress on resolution.
-    """
-    if not cycle_reps:
-        return singleton_reps
-    result = []
-    cycle_iter = iter(cycle_reps)
-    singleton_iter = iter(singleton_reps)
-    while True:
-        # Start each match-sized chunk with a cycle rep if available
-        cycle_rep = next(cycle_iter, None)
-        if cycle_rep:
-            result.append(cycle_rep)
-        # Fill rest of chunk with singletons
-        for _ in range(k - 1 if cycle_rep else k):
-            singleton = next(singleton_iter, None)
-            if singleton:
-                result.append(singleton)
-            else:
-                break
-        # Stop when both are exhausted
-        if cycle_rep is None and not result[-1:]:
-            break
-        if cycle_rep is None:
-            # No more cycle reps, append remaining singletons
-            result.extend(singleton_iter)
-            break
-    return result
-
-
 class TournamentGraphSort:
     def __init__(
         self,
@@ -207,10 +173,13 @@ class TournamentGraphSort:
         if all(self.node_satisfies_finalization_criterion(ni) for ni in top_m):
             return TournamentProgress([], [ni.node for ni in top_m], sorted_node_infos)
 
-        # Schedule: one representative per unresolved SCC, by ascending in_reach
+        # Schedule: one representative per unresolved SCC, by ascending in_reach.
+        # Cycle reps (from multi-node SCCs) go first to ensure they get compared
+        # against singletons - cycles have high in_reach due to mutual edges,
+        # so without prioritization they'd never be scheduled.
         seen_sccs: set[frozenset[Item]] = set()
-        singleton_reps: List[Item] = []
         cycle_reps: List[Item] = []
+        singleton_reps: List[Item] = []
         for node_info in sorted_node_infos:
             if self.node_satisfies_finalization_criterion(node_info):
                 continue
@@ -221,10 +190,7 @@ class TournamentGraphSort:
                     cycle_reps.append(node_info.node)
                 else:
                     singleton_reps.append(node_info.node)
-
-        # Interleave cycle reps at the front of each match to ensure they get
-        # compared against singletons (needed to resolve ties in cycles)
-        representatives = _interleave_cycle_reps(cycle_reps, singleton_reps, self.k)
+        representatives = cycle_reps + singleton_reps
 
         # Determine how many parallel matches to run
         top_item_compared = sorted_node_infos[0].known_relationships > 0 if sorted_node_infos else False
