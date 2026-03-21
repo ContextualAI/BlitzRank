@@ -11,7 +11,9 @@ from ..utils.logging_utils import logger
 API_TIMEOUT = 300.0
 
 
-FALLBACK_MODELS = {}
+FALLBACK_MODELS = {
+    "vertex_ai/gemini-3-flash-preview": "vertex_ai/gemini-2.0-flash",
+}
 
 class LitellmClient:
     def set_vars(self, model_name):
