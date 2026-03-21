@@ -8,12 +8,10 @@ from ..utils.retry_utils import async_retry
 from ..utils.logging_utils import logger
 
 
-API_TIMEOUT = 60.0
+API_TIMEOUT = 300.0
 
 
-FALLBACK_MODELS = {
-    "vertex_ai/gemini-3-flash-preview": "openai/gpt-4.1-mini",
-}
+FALLBACK_MODELS = {}
 
 class LitellmClient:
     def set_vars(self, model_name):
