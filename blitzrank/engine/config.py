@@ -96,6 +96,8 @@ class ComparerConfig:
     max_query_tokens: int = 1024
     max_concurrent_requests: int = 3
     temperature: Optional[float] = None
+    system_prompt: Optional[str] = None
+    relevance_instruction: Optional[str] = None
 
     def __post_init__(self):
         if isinstance(self.type, str):
