@@ -119,6 +119,9 @@ class TournamentGraphSortConfig:
     sort_strategy: SortStrategy = DEFAULT_SORT_STRATEGY
     enforce_tournament: bool = False  # whether to enforce that the graph is a tournament -- i.e., no parallel edges.
     on_round_complete: Callable[["RoundLog"], Awaitable[None] | None] | None = None
+    on_tournament_progress: (
+        Callable[[int, "TournamentProgress"], Awaitable[bool | None] | bool | None] | None
+    ) = None
 
     max_num_rounds: int = DEFAULT_MAX_NUM_ROUNDS
 
