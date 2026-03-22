@@ -12,7 +12,7 @@ from ..utils.retry_utils import async_retry
 from ..utils.logging_utils import logger
 
 
-MAX_PARSE_RETRIES = 5
+MAX_PARSE_RETRIES = 10
 
 
 @dataclass

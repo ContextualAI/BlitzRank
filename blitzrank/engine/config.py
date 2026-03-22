@@ -6,6 +6,7 @@ from enum import Enum
 
 class ComparerType(Enum):
     LISTWISE_RANK_GPT = "listwise_rank_gpt"
+    LISTWISE_COT = "listwise_cot"
     SETWISE = "setwise"
     PAIRWISE = "pairwise"
     CTXL_API = "ctxl_api"
@@ -184,7 +185,7 @@ class Config:
                 "pairwise",
             ]:
                 raise ValueError(f"Unknown selector type: {reranking.selector.type}")
-            if reranking.comparer.type not in [ComparerType.LISTWISE_RANK_GPT, ComparerType.SETWISE, ComparerType.PAIRWISE, ComparerType.CTXL_API]:
+            if reranking.comparer.type not in [ComparerType.LISTWISE_RANK_GPT, ComparerType.LISTWISE_COT, ComparerType.SETWISE, ComparerType.PAIRWISE, ComparerType.CTXL_API]:
                 raise ValueError(f"Unknown comparer type: {reranking.comparer.type}")
             if (
                 not isinstance(reranking.max_parallel_requests, int)
