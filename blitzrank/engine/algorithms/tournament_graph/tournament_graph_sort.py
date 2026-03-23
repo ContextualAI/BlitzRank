@@ -184,10 +184,10 @@ class TournamentGraphSort:
                 seen_sccs.add(scc_key)
                 representatives.append(node_info.node)
 
-        # Determine how many parallel matches to run
+        # Determine how many parallel matches to run (always at least 1 full match)
         num_competitive = sum(1 for ni in sorted_node_infos if ni.in_reach == 0)
-        num_full_matches = min(num_competitive // self.k, self.max_parallel_matches)
-        max_reps = max(self.k, num_full_matches * self.k)
+        num_full_matches = max(1, min(num_competitive // self.k, self.max_parallel_matches))
+        max_reps = num_full_matches * self.k
 
         return TournamentProgress(representatives[:max_reps], [], sorted_node_infos)
 
