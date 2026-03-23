@@ -1,4 +1,5 @@
 import asyncio
+import math
 from typing import Dict, List, Optional, Tuple, Any
 
 from .tournament_graph import TournamentGraph, RoundOutput
@@ -188,7 +189,8 @@ class TournamentGraphSort:
         # Only count in_reach=0 nodes — these are true contenders for top position
         # Matches are filled with lower-ranked nodes as needed, but don't scale parallelism for them
         num_competitive = sum(1 for ni in sorted_node_infos if ni.in_reach == 0)
-        num_full_matches = max(1, min(-(-num_competitive // self.k), self.max_parallel_matches))
+        matches_needed = math.ceil(num_competitive / self.k) if num_competitive > 0 else 1
+        num_full_matches = max(1, min(matches_needed, self.max_parallel_matches))
         max_reps = num_full_matches * self.k
 
         return TournamentProgress(representatives[:max_reps], [], sorted_node_infos)
