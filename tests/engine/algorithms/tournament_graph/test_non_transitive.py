@@ -213,9 +213,9 @@ def test_tournament_graph_multi_scc_cycle_structure() -> None:
     Expected:
     - 3 SCCs (one per bucket — within-bucket cycles merge each bucket into one SCC).
     - 3 three-cycles detected.
-    - Cross-bucket reach: bucket-0 items have out_reach=8, bucket-2 items have in_reach=8.
-      (R⁺_G / R⁻_G per the paper include same-SCC members since they are mutually reachable
-      in the original graph G, so 2 same-SCC + 6 cross-bucket = 8.)
+    - Cross-bucket reach: bucket-0 items have out_reach=6, bucket-2 items have in_reach=6.
+      (Same-SCC members are excluded from in_reach/out_reach to avoid inflated counts
+      for cycle members, so only the 6 cross-bucket items are counted.)
     """
     buckets = [[Item(f"{b}.{w}") for w in range(3)] for b in range(3)]
     all_items = [item for bucket in buckets for item in bucket]
@@ -252,17 +252,17 @@ def test_tournament_graph_multi_scc_cycle_structure() -> None:
             f"Bucket {i} items span {len(scc_ids)} SCCs, expected 1"
         )
 
-    # Bucket 0 beats all 6 items in buckets 1 and 2, plus its 2 same-SCC members are
-    # also reachable via the within-bucket cycle: 2 + 6 = 8 (R⁺_G per the paper).
+    # Bucket 0 beats all 6 items in buckets 1 and 2.
+    # Same-SCC members are excluded from out_reach to avoid inflated counts for cycles.
     b0_rep = buckets[0][0]
-    assert round_output.out_reach[b0_rep] == 8, (
-        f"Bucket-0 representative should have out_reach=8, got {round_output.out_reach[b0_rep]}"
+    assert round_output.out_reach[b0_rep] == 6, (
+        f"Bucket-0 representative should have out_reach=6, got {round_output.out_reach[b0_rep]}"
     )
-    # Bucket 2 is beaten by all 6 items in buckets 0 and 1, plus its 2 same-SCC members
-    # can also reach it via the within-bucket cycle: 2 + 6 = 8 (R⁻_G per the paper).
+    # Bucket 2 is beaten by all 6 items in buckets 0 and 1.
+    # Same-SCC members are excluded from in_reach to avoid inflated counts for cycles.
     b2_rep = buckets[2][0]
-    assert round_output.in_reach[b2_rep] == 8, (
-        f"Bucket-2 representative should have in_reach=8, got {round_output.in_reach[b2_rep]}"
+    assert round_output.in_reach[b2_rep] == 6, (
+        f"Bucket-2 representative should have in_reach=6, got {round_output.in_reach[b2_rep]}"
     )
 
 

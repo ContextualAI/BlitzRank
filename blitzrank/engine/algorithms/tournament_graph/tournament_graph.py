@@ -25,7 +25,7 @@ class RoundOutput:
     scc_sizes: List[int]  # List of SCC sizes (sorted descending)
     num_sccs: int  # Number of SCCs
 
-    # R⁺_G(u) and R⁻_G(u): reachability in G (includes same-SCC members)
+    # R⁺_G(u) and R⁻_G(u): reachability in G (excludes same-SCC members)
     out_reach: Dict[Any, int]  # |R⁺_G(u)|: nodes reachable FROM u in G
     in_reach: Dict[Any, int]  # |R⁻_G(u)|: nodes that can REACH u in G
 
@@ -108,8 +108,12 @@ class TournamentGraph:
         for node in self.G.nodes():
             descendants = nx.descendants(self.G, node)
             ancestors = nx.ancestors(self.G, node)
-            out_reach[node] = len(descendants)
-            in_reach[node] = len(ancestors)
+            # Exclude same-SCC members from in_reach/out_reach to avoid inflated
+            # counts for cycle members (they'd otherwise count internal edges)
+            scc_idx = scc_membership[node]
+            same_scc_others = len(scc_members[scc_idx]) - 1
+            out_reach[node] = len(descendants) - same_scc_others
+            in_reach[node] = len(ancestors) - same_scc_others
             known_relationships[node] = len(ancestors | descendants)
 
         return RoundOutput(
