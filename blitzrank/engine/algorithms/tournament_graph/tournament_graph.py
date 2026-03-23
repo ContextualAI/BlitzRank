@@ -25,9 +25,9 @@ class RoundOutput:
     scc_sizes: List[int]  # List of SCC sizes (sorted descending)
     num_sccs: int  # Number of SCCs
 
-    # External reachability (excludes same-SCC members to avoid inflated counts for cycles)
-    out_reach: Dict[Any, int]  # nodes reachable FROM u, excluding same-SCC members
-    in_reach: Dict[Any, int]  # nodes that can REACH u, excluding same-SCC members
+    # R⁺_G(u) and R⁻_G(u): reachability in G (excludes same-SCC members)
+    out_reach: Dict[Any, int]  # |R⁺_G(u)|: nodes reachable FROM u in G
+    in_reach: Dict[Any, int]  # |R⁻_G(u)|: nodes that can REACH u in G
 
     known_relationships: Dict[Any, int]  # κ_G(u) = |R⁻_G(u) ∪ R⁺_G(u)|
 
