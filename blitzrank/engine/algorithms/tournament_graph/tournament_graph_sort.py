@@ -185,16 +185,9 @@ class TournamentGraphSort:
                 representatives.append(node_info.node)
 
         # Determine how many parallel matches to run
-        top_item_compared = sorted_node_infos[0].known_relationships > 0 if sorted_node_infos else False
         num_competitive = sum(1 for ni in sorted_node_infos if ni.in_reach == 0)
-
-        if not top_item_compared:
-            max_reps = min(len(representatives), self.k * self.max_parallel_matches)
-        elif num_competitive > self.k:
-            num_full_matches = min(num_competitive // self.k, self.max_parallel_matches)
-            max_reps = num_full_matches * self.k
-        else:
-            max_reps = self.k
+        num_full_matches = min(num_competitive // self.k, self.max_parallel_matches)
+        max_reps = max(self.k, num_full_matches * self.k)
 
         return TournamentProgress(representatives[:max_reps], [], sorted_node_infos)
 
