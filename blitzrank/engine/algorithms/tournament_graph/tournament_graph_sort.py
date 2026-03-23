@@ -185,8 +185,10 @@ class TournamentGraphSort:
                 representatives.append(node_info.node)
 
         # Determine how many parallel matches to run (always at least 1 full match)
+        # Only count in_reach=0 nodes — these are true contenders for top position
+        # Matches are filled with lower-ranked nodes as needed, but don't scale parallelism for them
         num_competitive = sum(1 for ni in sorted_node_infos if ni.in_reach == 0)
-        num_full_matches = max(1, min(num_competitive // self.k, self.max_parallel_matches))
+        num_full_matches = max(1, min(-(-num_competitive // self.k), self.max_parallel_matches))
         max_reps = num_full_matches * self.k
 
         return TournamentProgress(representatives[:max_reps], [], sorted_node_infos)
