@@ -1,6 +1,7 @@
 """
 LiteLLM client for making LLM API calls.
 """
+import json
 import os
 import time
 from litellm import acompletion, BadRequestError
@@ -68,6 +69,10 @@ class LitellmClient:
         if "model" not in kwargs:
             raise Exception("Model is required.")
         self.set_vars(kwargs["model"])
+        if kwargs["model"].startswith("openai/"):
+            effort = os.getenv("OPENAI_REASONING_EFFORT")
+            if effort:
+                kwargs["reasoning_effort"] = json.loads(effort) if effort.lstrip().startswith("{") else effort
 
         if os.getenv("LANGFUSE_BASE_URL") is not None:
             kwargs.update(
