@@ -55,14 +55,15 @@ def _make_task(query, docs):
 
 
 class BlitzRank(Ranker):
-    def __init__(self, window_size: int = 20, top_m: int = 10):
+    def __init__(self, window_size: int = 20, top_m: int = 10, max_parallel_matches: int = 5):
         self.window_size = window_size
         self.top_m = top_m
+        self.max_parallel_matches = max_parallel_matches
 
     async def __call__(self, query, docs, topk, model):
         from .engine.algorithms.tournament_graph.experimental_interface import (
             rerank_with_tournament_graph, RerankTask, SingleContent,
-            LLMCompareOracle, TournamentGraphRerankConfig,
+            LLMCompareOracle, TournamentGraphRerankConfig, TournamentGraphSortConfig,
         )
         ws = min(self.window_size, len(docs))
         oracle = LLMCompareOracle(ws, ComparerConfig(type=ComparerType.LISTWISE_RANK_GPT, model=model))
@@ -72,8 +73,9 @@ class BlitzRank(Ranker):
             for i, d in enumerate(docs)
         ]
         task = RerankTask(query=query, contents=contents, hits=hits)
+        sort_config = TournamentGraphSortConfig(max_parallel_matches=self.max_parallel_matches)
         result = await rerank_with_tournament_graph(
-            task, TournamentGraphRerankConfig(top_m=min(topk, len(docs)), oracle=oracle)
+            task, TournamentGraphRerankConfig(top_m=min(topk, len(docs)), oracle=oracle), sort_config
         )
         indices = [item.content.orig_idx for item in result.results][:topk]
         stats = _extract_stats_from_logs(oracle.call_logs)
