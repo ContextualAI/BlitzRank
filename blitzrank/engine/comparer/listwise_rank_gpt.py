@@ -1,13 +1,18 @@
 """
 RankGPT comparer: full permutation ranking.
 
-Wraps the existing LlmRanker logic for rank_gpt style comparisons.
+Uses the RankGPT conversational prompt format with structured retry
+on parse failures (missing/duplicate indices).
 """
 from dataclasses import dataclass
 from typing import Any, List, Dict, Tuple, Optional
 
 from .base import BaseComparer, CompareResultBase
 from ..utils.retry_utils import async_retry
+from ..utils.logging_utils import logger
+
+
+MAX_PARSE_RETRIES = 10
 
 
 @dataclass
@@ -64,6 +69,19 @@ def parse_permutation(raw_response: str, num_docs: int) -> Tuple[List[int], List
     return filtered + missing, missing, duplicates
 
 
+def _correction_prompt(missing: List[int], duplicates: List[int], num_docs: int) -> str:
+    issues = []
+    if missing:
+        issues.append("missing " + ", ".join(f"[{i+1}]" for i in missing))
+    if duplicates:
+        issues.append("duplicate " + ", ".join(f"[{i+1}]" for i in duplicates))
+    return (
+        f"Your ranking has {' and '.join(issues)}. "
+        f"Rank ALL {num_docs} passages exactly once, most relevant first. "
+        f"Format: [1] > [2] > ... > [{num_docs}]"
+    )
+
+
 def _get_thought_tokens(usage: Any) -> int:
     if usage is None:
         return 0
@@ -85,6 +103,9 @@ class ListwiseRankGptComparer(BaseComparer):
     """
     Comparer that produces a full permutation ranking of documents.
     Uses the RankGPT conversational prompt format.
+
+    On parse failure (missing/duplicate indices), retries up to MAX_PARSE_RETRIES
+    times by appending the bad response and a correction prompt as new turns.
     """
 
     def __init__(self, model: str, max_doc_tokens: int, max_query_tokens: int = 1024, temperature: Optional[float] = None):
@@ -93,7 +114,6 @@ class ListwiseRankGptComparer(BaseComparer):
         self.temperature = temperature
 
     def _prepare_doc(self, content: str) -> str:
-        """Override to track trimmed docs."""
         from .base import _tokenizer
         text = content.replace("Title: Content: ", "").strip()
         encoded = _tokenizer.encode(text)
@@ -104,27 +124,49 @@ class ListwiseRankGptComparer(BaseComparer):
 
     @async_retry()
     async def compare(self, query: str, docs: List[str]) -> ListwiseRankGptResult:
-        """
-        Rank all docs and return permutation result.
-        """
         self.num_trimmed_docs = 0
         prepared_query = self._prepare_query(query)
         prepared_docs = [self._prepare_doc(doc) for doc in docs]
         messages = create_permutation_instruction(prepared_query, prepared_docs)
 
-        raw_response, latency_ms, usage = await self.client.get_response(self.model, messages, self.temperature)
-        permutation, missing, duplicates = parse_permutation(raw_response, len(docs))
-        thought_tokens = _get_thought_tokens(usage)
+        total_input = 0
+        total_output = 0
+        total_thought = 0
+        total_latency = 0.0
+
+        for attempt in range(1 + MAX_PARSE_RETRIES):
+            raw_response, latency_ms, usage = await self.client.get_response(
+                self.model, messages, self.temperature,
+            )
+            permutation, missing, duplicates = parse_permutation(raw_response, len(docs))
+
+            total_input += getattr(usage, "prompt_tokens", 0)
+            total_output += getattr(usage, "completion_tokens", 0)
+            total_thought += _get_thought_tokens(usage)
+            total_latency += latency_ms
+
+            if not missing and not duplicates:
+                break
+
+            if attempt < MAX_PARSE_RETRIES:
+                logger.warning(
+                    f"Parse retry {attempt+1}/{MAX_PARSE_RETRIES}: "
+                    f"missing={[i+1 for i in missing]}, dup={[i+1 for i in duplicates]}"
+                )
+                messages.append({"role": "assistant", "content": raw_response})
+                messages.append({"role": "user", "content": _correction_prompt(
+                    missing, duplicates, len(docs),
+                )})
 
         return ListwiseRankGptResult(
             permutation=permutation,
             missing_indices=missing,
             duplicate_indices=duplicates,
-            thought_tokens=thought_tokens,
+            thought_tokens=total_thought,
             num_trimmed_docs=self.num_trimmed_docs,
-            input_tokens=getattr(usage, "prompt_tokens", 0),
-            output_tokens=getattr(usage, "completion_tokens", 0),
-            latency_ms=latency_ms,
+            input_tokens=total_input,
+            output_tokens=total_output,
+            latency_ms=total_latency,
             model=self.model,
             raw_prompt=messages,
             raw_response=raw_response,

@@ -1,6 +1,7 @@
 """
 LiteLLM client for making LLM API calls.
 """
+import json
 import os
 import time
 from litellm import acompletion, BadRequestError
@@ -8,11 +9,11 @@ from ..utils.retry_utils import async_retry
 from ..utils.logging_utils import logger
 
 
-API_TIMEOUT = 60.0
+API_TIMEOUT = 300.0
 
 
 FALLBACK_MODELS = {
-    "vertex_ai/gemini-3-flash-preview": "openai/gpt-4.1-mini",
+    "vertex_ai/gemini-3-flash-preview": "vertex_ai/gemini-2.0-flash",
 }
 
 class LitellmClient:
@@ -47,9 +48,9 @@ class LitellmClient:
         return {"chat_template_kwargs": {"enable_thinking": False}}
 
     @async_retry()
-    async def get_response(self, model, messages, temperature, fallback_enabled=True):
+    async def get_response(self, model, messages, temperature, fallback_enabled=True, **kwargs):
         start_time = time.perf_counter()
-        args = dict(model=model, messages=messages)
+        args = dict(model=model, messages=messages, **kwargs)
         if temperature is not None:
             args["temperature"] = temperature
         try:
@@ -59,7 +60,7 @@ class LitellmClient:
         if response is None or len(response.choices) == 0 or response.choices[0].message.content is None:
             if fallback_enabled and model in FALLBACK_MODELS:
                 logger.warning(f"No response from {model}, falling back to {FALLBACK_MODELS[model]}")
-                return await self.get_response(FALLBACK_MODELS[model], messages, temperature)
+                return await self.get_response(FALLBACK_MODELS[model], messages, temperature, **kwargs)
             raise Exception("No response from model")
         latency_ms = (time.perf_counter() - start_time) * 1000
         return response.choices[0].message.content, latency_ms, response.usage
@@ -68,6 +69,10 @@ class LitellmClient:
         if "model" not in kwargs:
             raise Exception("Model is required.")
         self.set_vars(kwargs["model"])
+        if kwargs["model"].startswith("openai/"):
+            effort = os.getenv("OPENAI_REASONING_EFFORT")
+            if effort:
+                kwargs["reasoning_effort"] = json.loads(effort) if effort.lstrip().startswith("{") else effort
 
         if os.getenv("LANGFUSE_BASE_URL") is not None:
             kwargs.update(

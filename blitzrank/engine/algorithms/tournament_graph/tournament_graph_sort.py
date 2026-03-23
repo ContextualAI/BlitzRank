@@ -34,6 +34,9 @@ class TournamentGraphSort:
         self.num_top_nodes_to_output = min(num_top_nodes_to_output or self.n, self.n)
         self.sort_strategy = self.tournament_graph_sort_config.sort_strategy
         self.on_round_complete = self.tournament_graph_sort_config.on_round_complete
+        self.on_tournament_progress = (
+            self.tournament_graph_sort_config.on_tournament_progress
+        )
 
         self.max_num_rounds = self.tournament_graph_sort_config.max_num_rounds
 
@@ -66,6 +69,16 @@ class TournamentGraphSort:
                     edges_added=edges_added,
                 )
             )
+            should_stop = False
+            if self.on_tournament_progress is not None:
+                should_stop = self.on_tournament_progress(
+                    num_rounds, tournament_progress
+                )
+                if asyncio.iscoroutine(should_stop):
+                    should_stop = await should_stop
+            if should_stop:
+                finalized_nodes = tournament_progress.finalized_nodes
+                break
 
             self.check_for_infinite_loop(
                 nodes_for_next_match, tournament_progress, num_rounds
@@ -142,6 +155,11 @@ class TournamentGraphSort:
             num_rounds=num_rounds,
             num_oracle_calls=self.oracle.get_num_calls(),
             graph=self.tournament_graph,
+        )
+
+    def get_current_progress(self) -> TournamentProgress:
+        return self.get_tournament_progress_for_round(
+            self.tournament_graph.process_round([])
         )
 
     def node_satisfies_finalization_criterion(self, node_info: NodeInfo) -> bool:
